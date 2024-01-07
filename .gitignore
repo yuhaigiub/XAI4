@@ -1,0 +1,4 @@
+__pycache__
+*.txt
+/store
+/saved_models
