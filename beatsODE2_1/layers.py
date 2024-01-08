@@ -115,7 +115,7 @@ class CGPFunc(nn.Module):
         self.adj = adj
     
     def forward(self, t, x: Tensor):
-        adj = self.adj + torch.eye(self.adj.size(0)).to(x.device)
+        adj = adj + torch.eye(adj.size(0)).to(x.device)
         d = adj.sum(1)
         _d = torch.diag(torch.pow(d, -0.5))
         adj_norm = torch.mm(torch.mm(_d, adj), _d)

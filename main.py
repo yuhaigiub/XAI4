@@ -7,8 +7,9 @@ import torch
 import util
 # from graphwavenet.model import GraphWaveNet
 # from beatsODE.model import BeatsODE
-from mtgode.model import MTGODE
-from beatsODE2.model import BeatsODE2
+# from mtgode.model import MTGODE
+# from beatsODE2.model import BeatsODE2
+from beatsODE2_1.model import BeatsODE2
 
 from engine import Engine
 # from engine2 import Engine2
@@ -59,9 +60,9 @@ def main():
     # model = GraphWaveNet(args.num_nodes, args.input_dim, args.output_dim, args.timestep)
     # model = BeatsODE(device, args.input_dim, args.output_dim, args.timestep)
     # model = MTGODE(device, args.input_dim, args.timestep, adj_mx, args.timestep)
-    model = BeatsODE2(device, adj_mx)
+    model = BeatsODE2(in_dim=2, out_dim=2, seq_len=12)
     engine = Engine(scaler,
-                    model, 
+                    model,
                     args.num_nodes, 
                     args.learning_rate,
                     args.weight_decay, 

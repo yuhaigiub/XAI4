@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE2.layers import CGPBlock, dilated_inception
+from beatsODE2.layers import CGPODEBlock, dilated_inception
 
 class BeatsODE2(nn.Module):
     def __init__(self,
@@ -134,8 +134,8 @@ class STBlock(nn.Module):
         self.inception_1 = dilated_inception(hidden_dim, hidden_dim)
         self.inception_2 = dilated_inception(hidden_dim, hidden_dim)
         
-        self.gconv1 = CGPBlock(hidden_dim, hidden_dim)
-        self.gconv2 = CGPBlock(hidden_dim, hidden_dim)
+        self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
+        self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
         
         self.adj = None
     

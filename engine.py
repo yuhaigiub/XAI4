@@ -8,9 +8,12 @@ class Engine():
         self.model = model
         self.model.to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lrate, weight_decay=wdecay)
+        print('number of parameters:', len(list(self.model.parameters())))
+        
         self.loss = util.masked_mae
         self.scaler = scaler
         self.clip = 5
+        
 
         self.edge_index = [[], []]
         self.edge_weight = []
@@ -24,8 +27,9 @@ class Engine():
                     self.edge_index[1].append(j)
                     self.edge_weight.append(adj_mx.item((i, j)))
 
-        self.edge_index = torch.tensor(self.edge_index)
-        self.edge_weight = torch.tensor(self.edge_weight)
+        self.adj_mx = torch.tensor(adj_mx).to(device)
+        self.edge_index = torch.tensor(self.edge_index).to(device)
+        self.edge_weight = torch.tensor(self.edge_weight).to(device)
 
     def train(self, input, real_val):
         '''
@@ -38,7 +42,7 @@ class Engine():
         # input = input.transpose(-3, -1)
         
         # output = self.model(input, self.edge_index, self.edge_weight)
-        output = self.model(input)
+        output = self.model(input, self.adj_mx)
         # [batch_size, time_steps, num_nodes, channels]
         output = output.transpose(-3, -1)
         
@@ -65,7 +69,7 @@ class Engine():
         # input = input.transpose(-3, -1)
         
         # output = self.model(input, self.edge_index, self.edge_weight)
-        output = self.model(input)
+        output = self.model(input, self.adj_mx)
         # [batch_size, time_steps, num_nodes, channels]
         output = output.transpose(-3, -1)
         
