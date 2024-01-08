@@ -46,7 +46,7 @@ class dilated_inception(nn.Module):
 
 class CGPBlock(nn.Module):
     def __init__(self, in_dim, out_dim, alpha=1.0):
-        super(CGPFunc, self).__init__()
+        super(CGPBlock, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.alpha = alpha

@@ -8,8 +8,8 @@ import util
 # from graphwavenet.model import GraphWaveNet
 # from beatsODE.model import BeatsODE
 # from mtgode.model import MTGODE
-# from beatsODE2.model import BeatsODE2
-from beatsODE2_1.model import BeatsODE2
+from beatsODE2.model import BeatsODE2
+# from beatsODE2_1.model import BeatsODE2
 
 from engine import Engine
 # from engine2 import Engine2
