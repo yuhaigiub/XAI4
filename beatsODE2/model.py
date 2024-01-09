@@ -15,6 +15,7 @@ class BeatsODE2(nn.Module):
                  time_2=1.2, step_size_2=0.4,
                  share_weight_in_stack=False):
         super(BeatsODE2, self).__init__()
+        print('BeatsODE2')
         if share_weight_in_stack:
             print('BeatsODE with share_stack_weight')
         

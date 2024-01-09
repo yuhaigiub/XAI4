@@ -15,7 +15,7 @@ class BeatsODE2(nn.Module):
                  time_2=1.2, step_size_2=0.4,
                  share_weight_in_stack=False):
         super(BeatsODE2, self).__init__()
-        print('BeatsODE2_1')
+        print('BeatsODE2_2')
         if share_weight_in_stack:
             print('BeatsODE with share_stack_weight')
         
@@ -70,9 +70,7 @@ class BeatsBlock(nn.Module):
         
         self.start_conv = nn.Conv2d(in_dim, conv_dim, kernel_size=(1, 1))
         
-        self.ODE = ODEBlock(STBlock(self.receptive_field, 1, conv_dim, time_2, step_size_2), 
-                            time_1, 
-                            step_size_1)
+        self.st_block = STBlock(self.receptive_field, 1, conv_dim, time_2, step_size_2)
         
         self.backcast_decoder = nn.Sequential(nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
                                               nn.ReLU(),
@@ -88,9 +86,8 @@ class BeatsBlock(nn.Module):
         
         x = self.start_conv(x)
         
-        self.ODE.odefunc.set_adj(adj)
-        x = self.ODE(x)
-        self.ODE.odefunc.set_intermediate(1)
+        x = self.st_block(x, adj)
+        self.st_block.set_intermediate(1)
         
         x = x[..., -self.out_dim:]
         x = F.layer_norm(x, tuple(x.shape[1:]), weight=None, bias=None, eps=1e-5)
@@ -100,23 +97,6 @@ class BeatsBlock(nn.Module):
         forecast = self.forecast_decoder(x)
         
         return backcast, forecast
-
-class ODEBlock(nn.Module):
-    def __init__(self, odefunc, time_1, step_size_1):
-        super(ODEBlock, self).__init__()
-        self.odefunc = odefunc
-        
-        self.time = time_1
-        self.step_size = step_size_1
-    
-    def forward(self, x: Tensor):
-        self.integration_time = torch.tensor([0, self.time]).float().type_as(x)
-        out = torchdiffeq.odeint(self.odefunc, 
-                                 x, 
-                                 self.integration_time,
-                                 method="euler",
-                                 options=dict(step_size=self.step_size))
-        return out[-1]
 
 class STBlock(nn.Module):
     def __init__(self, 
@@ -137,17 +117,12 @@ class STBlock(nn.Module):
         
         self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
         self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
-        
-        self.adj = None
-    
-    def set_adj(self, adj: Tensor):
-        self.adj = adj
     
     def set_intermediate(self, dilation):
         self.new_dilation = dilation
         self.intermediate_seq_len = self.receptive_field
     
-    def forward(self, t, x: Tensor):
+    def forward(self, x: Tensor, adj: Tensor):
         x = x[..., -self.intermediate_seq_len:]
         
         for tconv in self.inception_1.tconv:
@@ -168,7 +143,7 @@ class STBlock(nn.Module):
         
         x = F.dropout(x, self.dropout)
         
-        x = self.gconv1(x, self.adj) + self.gconv2(x, self.adj.T)
+        x = self.gconv1(x, adj) + self.gconv2(x, adj.T)
         
         x = F.pad(x, (self.receptive_field - x.size(3), 0))
         

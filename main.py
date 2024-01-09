@@ -8,8 +8,9 @@ import util
 # from graphwavenet.model import GraphWaveNet
 # from beatsODE.model import BeatsODE
 # from mtgode.model import MTGODE
-from beatsODE2.model import BeatsODE2
+# from beatsODE2.model import BeatsODE2
 # from beatsODE2_1.model import BeatsODE2
+from beatsODE2_2.model import BeatsODE2
 
 from engine import Engine
 # from engine2 import Engine2
@@ -118,8 +119,8 @@ def main():
         s1 = time.time()
         for iter, (x, y) in enumerate(dataloader['val_loader'].get_iterator()):
             testx = torch.Tensor(x).to(device)
-            testx = testx.transpose(1, 3)
             testy = torch.Tensor(y).to(device)
+            testx = testx.transpose(1, 3)
             testy = testy.transpose(1, 3)
             metrics = engine.eval(testx, testy[:, 0, :, :])
             valid_loss.append(metrics[0])
@@ -138,8 +139,8 @@ def main():
         
         for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
             testx_ = torch.Tensor(x).to(device)
-            testx_ = testx_.transpose(1, 3)
             testy_ = torch.Tensor(y).to(device)
+            testx_ = testx_.transpose(1, 3)
             testy_ = testy_.transpose(1, 3)
             
             metrics = engine.eval(testx_, testy_[:, 0, :, :])
