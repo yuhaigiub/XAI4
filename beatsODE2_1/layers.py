@@ -64,12 +64,15 @@ class CGPBlock(nn.Module):
         return f
 
 class CGPODEBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, time, step_size, alpha=1.0):
+    def __init__(self, in_dim, out_dim, time, step_size, rtol, atol, alpha=1.0):
         super(CGPODEBlock, self).__init__()
         self.time = time
         self.step_size = step_size
         
         self.estimated_nfe = round(time / step_size)
+        
+        self.rtol = rtol
+        self.atol = atol
         
         self.odefunc = CGPFunc(in_dim, out_dim, alpha)
         
@@ -81,9 +84,10 @@ class CGPODEBlock(nn.Module):
         
         self.integration_time = torch.tensor([0, self.time]).float().type_as(x)
         out = torchdiffeq.odeint(self.odefunc, 
-                                 x, 
+                                 x,
                                  self.integration_time,
                                  method="euler",
+                                 rtol=self.rtol, atƯol=self.atol,
                                  options=dict(step_size=self.step_size))
         
         outs = self.odefunc.out

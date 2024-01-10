@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE2.layers import CGPODEBlock, dilated_inception
+from beatsODE2_1.layers import CGPODEBlock, dilated_inception
 
 class BeatsODE2(nn.Module):
     def __init__(self,
@@ -13,6 +13,7 @@ class BeatsODE2(nn.Module):
                  seq_len=12,
                  time_1=1.0, step_size_1=0.25,
                  time_2=1.2, step_size_2=0.4,
+                 rtol=1e-4, atol=1e-3,
                  share_weight_in_stack=True):
         super(BeatsODE2, self).__init__()
         print('BeatsODE2_1')
@@ -31,7 +32,12 @@ class BeatsODE2(nn.Module):
                 if share_weight_in_stack and block_id != 0:
                     block = blocks[-1]
                 else:
-                    block = BeatsBlock(in_dim, out_dim, seq_len, time_1, step_size_1, time_2, step_size_2)
+                    block = BeatsBlock(in_dim, 
+                                       out_dim, 
+                                       seq_len, 
+                                       time_1, step_size_1, 
+                                       time_2, step_size_2, 
+                                       rtol, atol)
                 blocks.append(block)
             
             self.stacks.append(blocks)
@@ -57,6 +63,7 @@ class BeatsBlock(nn.Module):
                  seq_len,
                  time_1, step_size_1,
                  time_2, step_size_2,
+                 rtol, atol,
                  conv_dim=32,
                  end_dim=128):
         super(BeatsBlock, self).__init__()
@@ -70,9 +77,8 @@ class BeatsBlock(nn.Module):
         
         self.start_conv = nn.Conv2d(in_dim, conv_dim, kernel_size=(1, 1))
         
-        self.ODE = ODEBlock(STBlock(self.receptive_field, 1, conv_dim, time_2, step_size_2), 
-                            time_1, 
-                            step_size_1)
+        st_block = STBlock(self.receptive_field, 1, conv_dim, time_2, step_size_2, rtol, atol)
+        self.ODE = ODEBlock(st_block, time_1, step_size_1, rtol, atol)
         
         self.backcast_decoder = nn.Sequential(nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
                                               nn.ReLU(),
@@ -102,12 +108,15 @@ class BeatsBlock(nn.Module):
         return backcast, forecast
 
 class ODEBlock(nn.Module):
-    def __init__(self, odefunc, time_1, step_size_1):
+    def __init__(self, odefunc, time_1, step_size_1, rtol, atol):
         super(ODEBlock, self).__init__()
         self.odefunc = odefunc
         
         self.time = time_1
         self.step_size = step_size_1
+        
+        self.rtol = rtol
+        self.atol = atol
     
     def forward(self, x: Tensor):
         self.integration_time = torch.tensor([0, self.time]).float().type_as(x)
@@ -115,6 +124,7 @@ class ODEBlock(nn.Module):
                                  x, 
                                  self.integration_time,
                                  method="euler",
+                                 rtol=self.rtol, atol=self.atol,
                                  options=dict(step_size=self.step_size))
         return out[-1]
 
@@ -124,6 +134,7 @@ class STBlock(nn.Module):
                  dilation,
                  hidden_dim,
                  time_2, step_size_2,
+                 rtol, atol,
                  dropout=0.3):
         super(STBlock, self).__init__()
         self.dropout = dropout
@@ -135,8 +146,8 @@ class STBlock(nn.Module):
         self.inception_1 = dilated_inception(hidden_dim, hidden_dim)
         self.inception_2 = dilated_inception(hidden_dim, hidden_dim)
         
-        self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
-        self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
+        self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol)
+        self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol)
         
         self.adj = None
     
