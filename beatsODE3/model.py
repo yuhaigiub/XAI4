@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE2.layers import CGPBlock, dilated_inception
+from beatsODE3.layers import CGPBlock, dilated_inception
 
 class BeatsODE2(nn.Module):
     def __init__(self,
