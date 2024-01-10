@@ -13,7 +13,7 @@ class BeatsODE2(nn.Module):
                  seq_len=12,
                  time_1=1.0, step_size_1=0.25,
                  time_2=1.2, step_size_2=0.4,
-                 rtol=1e-4, atol=1e-3,
+                 rtol=1e-4, atol=1e-3, perturb=False,
                  share_weight_in_stack=True):
         super(BeatsODE2, self).__init__()
         print('BeatsODE2_1')
@@ -34,10 +34,10 @@ class BeatsODE2(nn.Module):
                 else:
                     block = BeatsBlock(in_dim, 
                                        out_dim, 
-                                       seq_len, 
+                                       seq_len,
                                        time_1, step_size_1, 
                                        time_2, step_size_2, 
-                                       rtol, atol)
+                                       rtol, atol, perturb)
                 blocks.append(block)
             
             self.stacks.append(blocks)
@@ -63,7 +63,7 @@ class BeatsBlock(nn.Module):
                  seq_len,
                  time_1, step_size_1,
                  time_2, step_size_2,
-                 rtol, atol,
+                 rtol, atol, perturb,
                  conv_dim=32,
                  end_dim=128):
         super(BeatsBlock, self).__init__()
@@ -77,8 +77,8 @@ class BeatsBlock(nn.Module):
         
         self.start_conv = nn.Conv2d(in_dim, conv_dim, kernel_size=(1, 1))
         
-        st_block = STBlock(self.receptive_field, 1, conv_dim, time_2, step_size_2, rtol, atol)
-        self.ODE = ODEBlock(st_block, time_1, step_size_1, rtol, atol)
+        st_block = STBlock(self.receptive_field, 1, conv_dim, time_2, step_size_2, rtol, atol, perturb)
+        self.ODE = ODEBlock(st_block, time_1, step_size_1, rtol, atol, perturb)
         
         self.backcast_decoder = nn.Sequential(nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
                                               nn.ReLU(),
@@ -108,7 +108,7 @@ class BeatsBlock(nn.Module):
         return backcast, forecast
 
 class ODEBlock(nn.Module):
-    def __init__(self, odefunc, time_1, step_size_1, rtol, atol):
+    def __init__(self, odefunc, time_1, step_size_1, rtol, atol, perturb):
         super(ODEBlock, self).__init__()
         self.odefunc = odefunc
         
@@ -117,6 +117,7 @@ class ODEBlock(nn.Module):
         
         self.rtol = rtol
         self.atol = atol
+        self.perturb = perturb
     
     def forward(self, x: Tensor):
         self.integration_time = torch.tensor([0, self.time]).float().type_as(x)
@@ -125,7 +126,7 @@ class ODEBlock(nn.Module):
                                  self.integration_time,
                                  method="euler",
                                  rtol=self.rtol, atol=self.atol,
-                                 options=dict(step_size=self.step_size))
+                                 options=dict(step_size=self.step_size, perturb=self.perturb))
         return out[-1]
 
 class STBlock(nn.Module):
@@ -134,7 +135,7 @@ class STBlock(nn.Module):
                  dilation,
                  hidden_dim,
                  time_2, step_size_2,
-                 rtol, atol,
+                 rtol, atol, perturb,
                  dropout=0.3):
         super(STBlock, self).__init__()
         self.dropout = dropout
@@ -146,8 +147,8 @@ class STBlock(nn.Module):
         self.inception_1 = dilated_inception(hidden_dim, hidden_dim)
         self.inception_2 = dilated_inception(hidden_dim, hidden_dim)
         
-        self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol)
-        self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol)
+        self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol, perturb)
+        self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol, perturb)
         
         self.adj = None
     

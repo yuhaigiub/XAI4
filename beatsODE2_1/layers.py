@@ -64,7 +64,7 @@ class CGPBlock(nn.Module):
         return f
 
 class CGPODEBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, time, step_size, rtol, atol, alpha=1.0):
+    def __init__(self, in_dim, out_dim, time, step_size, rtol, atol, perturb, alpha=1.0):
         super(CGPODEBlock, self).__init__()
         self.time = time
         self.step_size = step_size
@@ -73,6 +73,7 @@ class CGPODEBlock(nn.Module):
         
         self.rtol = rtol
         self.atol = atol
+        self.perturb = perturb
         
         self.odefunc = CGPFunc(in_dim, out_dim, alpha)
         
@@ -87,8 +88,8 @@ class CGPODEBlock(nn.Module):
                                  x,
                                  self.integration_time,
                                  method="euler",
-                                 rtol=self.rtol, atƯol=self.atol,
-                                 options=dict(step_size=self.step_size))
+                                 rtol=self.rtol, atol=self.atol,
+                                 options=dict(step_size=self.step_size, perturb=self.perturb))
         
         outs = self.odefunc.out
         self.odefunc.out = []
@@ -119,7 +120,7 @@ class CGPFunc(nn.Module):
         self.adj = adj
     
     def forward(self, t, x: Tensor):
-        adj = adj + torch.eye(adj.size(0)).to(x.device)
+        adj = self.adj + torch.eye(self.adj.size(0)).to(x.device)
         d = adj.sum(1)
         _d = torch.diag(torch.pow(d, -0.5))
         adj_norm = torch.mm(torch.mm(_d, adj), _d)
