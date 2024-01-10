@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE2.layers import CGPODEBlock, dilated_inception
+from beatsODE2.layers import CGPBlock, dilated_inception
 
 class BeatsODE2(nn.Module):
     def __init__(self,
@@ -73,8 +73,7 @@ class BeatsODE3(nn.Module):
         for stack_id in range(n_stacks):
             self.stacks.append(BeatsODEBlock(in_dim, out_dim, seq_len, time_1, step_size_1, time_2, step_size_2))
     
-    def forward(self, backcast: Tensor, adj: Tensor):
-        
+    def forward(self, backcast: Tensor, adj: Tensor):        
         self.integration_time = torch.tensor([0, self.time]).float().type_as(backcast)
         forecast = torch.zeros_like(backcast).type_as(backcast)
         
@@ -237,8 +236,8 @@ class STBlock(nn.Module):
         self.inception_1 = dilated_inception(hidden_dim, hidden_dim)
         self.inception_2 = dilated_inception(hidden_dim, hidden_dim)
         
-        self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
-        self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2)
+        self.gconv1 = CGPBlock(hidden_dim, hidden_dim)
+        self.gconv2 = CGPBlock(hidden_dim, hidden_dim)
     
     def set_intermediate(self, dilation):
         self.new_dilation = dilation

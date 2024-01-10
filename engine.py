@@ -69,7 +69,7 @@ class Engine():
         # input = input.transpose(-3, -1)
         
         # output = self.model(input, self.edge_index, self.edge_weight)
-        output = self.model(input, self.adj_mx)
+        output = self.model(input, self.adj_mx)[:, 0:1, :, :]
         # [batch_size, time_steps, num_nodes, channels]
         output = output.transpose(-3, -1)
         
