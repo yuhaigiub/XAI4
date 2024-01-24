@@ -8,11 +8,13 @@ class Engine2():
         self.model = model
         self.model.to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lrate, weight_decay=wdecay)
-        print('number of parameters:', sum(p.numel() for p in model.parameters()))
-        print('number of trainable parameters:', sum(p.numel() 
-                                                     for p in self.model.parameters() if p.requires_grad))
+        params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print('number of parameters:', params)
+        print('number of trainable parameters:', trainable_params)
+        
         self.seq_lens = seq_lens
-        self.coeffs = [1., 1., 1.]
+        
         self.loss = util.masked_mae
         self.scaler = scaler
         self.clip = 5
@@ -45,23 +47,22 @@ class Engine2():
         real = torch.unsqueeze(real_val, dim=1)
         
         loss = 0
-        mape = 0
-        rmse = 0
-        L, MAPE, RMSE = [], [], []
+        
+        Ls, MAPEs, RMSEs = [], [], []
         for i, out in enumerate(outs):
             predict = self.scaler.inverse_transform(out[:, 0:1, : ,:].transpose(-3, -1))
             r = real[:, :, :, 0: self.seq_lens[i]]
             
-            l_1 = self.loss(predict, r, 0.0)
-            l_2 = util.masked_mape(predict, r, 0.0).item()
-            l_3 = util.masked_rmse(predict, r, 0.0).item()
-            loss = loss + self.coeffs[i] * l_1
-            mape = mape + self.coeffs[i] * l_2
-            rmse = rmse + self.coeffs[i] * l_3
+            mae = self.loss(predict, r, 0.0)
+            mape = util.masked_mape(predict, r, 0.0).item()
+            rmse = util.masked_rmse(predict, r, 0.0).item()
             
-            L.append(round(l_1.item(), 4))
-            MAPE.append(round(l_2, 4))
-            RMSE.append(round(l_3, 4))
+            # calculate the losses
+            loss = loss + mae
+            
+            Ls.append(round(mae.item(), 4))
+            MAPEs.append(round(mape, 4))
+            RMSEs.append(round(rmse, 4))
             
         loss.backward()
         
@@ -69,7 +70,7 @@ class Engine2():
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
         self.optimizer.step()
         
-        return loss.item(), mape, rmse, L, MAPE, RMSE
+        return Ls, MAPEs, RMSEs
 
     def eval(self, input, real_val):
         '''
@@ -77,27 +78,24 @@ class Engine2():
         '''
         self.model.eval()
         
-        # output = self.model(input, self.edge_index, self.edge_weight)
         outs = self.model(input, self.adj_mx)
         real = torch.unsqueeze(real_val, dim=1)
         
         loss = 0
-        mape = 0
-        rmse = 0
-        L, MAPE, RMSE = [], [], []
+        
+        Ls, MAPEs, RMSEs = [], [], []
         for i, out in enumerate(outs):
             predict = self.scaler.inverse_transform(out[:, 0:1, : ,:].transpose(-3, -1))
             r = real[:, :, :, 0: self.seq_lens[i]]
             
-            l_1 = self.loss(predict, r, 0.0)
-            l_2 = util.masked_mape(predict, r, 0.0).item()
-            l_3 = util.masked_rmse(predict, r, 0.0).item()
-            loss = loss + l_1
-            mape = mape + l_2
-            rmse = rmse + l_3
+            mae = self.loss(predict, r, 0.0)
+            mape = util.masked_mape(predict, r, 0.0).item()
+            rmse = util.masked_rmse(predict, r, 0.0).item()
             
-            L.append(round(l_1.item(), 4))
-            MAPE.append(round(l_2, 4))
-            RMSE.append(round(l_3, 4))
+            loss = loss + mae
+            
+            Ls.append(round(mae.item(), 4))
+            MAPEs.append(round(mape, 4))
+            RMSEs.append(round(rmse, 4))
         
-        return loss.item(), mape, rmse, L, MAPE, RMSE
+        return Ls, MAPEs, RMSEs

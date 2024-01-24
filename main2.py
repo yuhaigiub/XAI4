@@ -9,7 +9,6 @@ import util
 from beatsODE3_2.model import BeatsODE3
 # from beatsODE3_3.model import BeatsODE3
 
-# from engine import Engine
 from engine2 import Engine2
 
 parser = argparse.ArgumentParser()
@@ -21,7 +20,7 @@ parser.add_argument('--device', type=str, default='cuda', help='device to run th
 parser.add_argument('--data', type=str, default='store/METR-LA', help='data path')
 parser.add_argument('--adjdata', type=str, default='store/adj_mx.pkl', help='adj data path')
 
-parser.add_argument('--epochs', type=int, default=5, help='')
+parser.add_argument('--epochs', type=int, default=1, help='')
 parser.add_argument('--batch_size', type=int, default=16, help='batch size')
 
 parser.add_argument('--learning_rate', type=float, default=0.001, help='learning rate')
@@ -65,6 +64,8 @@ def main():
                      args.weight_decay, 
                      device, 
                      adj_mx)
+    
+    # load checkpoints
     if args.iter_epoch != -1:
         print('loading epoch {}'.format(args.iter_epoch))
         model.load_state_dict(torch.load(args.save + '/G_T_model_{}.pth'.format(args.iter_epoch)))
@@ -84,9 +85,9 @@ def main():
 
     for i in range(args.iter_epoch + 1, args.iter_epoch + 1 + args.epochs + 1):
         print('training epoch {} ***'.format(i))
-        train_loss = []
-        train_mape = []
-        train_rmse = []
+        train_loss_list = []
+        train_mape_list = []
+        train_rmse_list = [] 
         
         t1 = time.time()
         dataloader['train_loader'].shuffle()
@@ -99,71 +100,83 @@ def main():
             
             metrics = engine.train(trainx, trainy[:, 0, :, :])
             
-            train_loss.append(metrics[0])
-            train_mape.append(metrics[1])
-            train_rmse.append(metrics[2])
+            train_loss_list.append(metrics[0])
+            train_mape_list.append(metrics[1])
+            train_rmse_list.append(metrics[2])
             
             if iter % args.print_every == 0:
-                log = 'Iter: {:03d}, Train Loss: {:.4f}, Train MAPE: ' + '{:.4f}, Train RMSE: {:.4f}'
-                print(log.format(iter, train_loss[-1], train_mape[-1], train_rmse[-1]), flush=True)
-                print('- MAE:  {}'.format(metrics[3]))
-                print('- MAPE: {}'.format(metrics[4]))
-                print('- RMSE: {}'.format(metrics[5]))
+                print('Epoch: {}; Iter: {}'.format(i, iter))
+                print('- MAE:  {}'.format(train_loss_list[-1]))
+                print('- MAPE: {}'.format(train_mape_list[-1]))
+                print('- RMSE: {}'.format(train_rmse_list[-1]))
                 
-                
-        t2 = time.time()
         
+        t2 = time.time()
         train_time.append(t2 - t1)
-        valid_loss = []
-        valid_mape = []
-        valid_rmse = []
+        
+        mtrain_loss = np.mean(train_loss_list, axis=0).round(4)
+        mtrain_mape = np.mean(train_mape_list, axis=0).round(4)
+        mtrain_rmse = np.mean(train_rmse_list, axis=0).round(4)
+        
+        del train_loss_list, train_mape_list, train_rmse_list
+        
+        # val
+        
+        valid_loss_list = []
+        valid_mape_list = []
+        valid_rmse_list = []
 
         s1 = time.time()
         for iter, (x, y) in enumerate(dataloader['val_loader'].get_iterator()):
             testx = torch.Tensor(x).to(device)
             testy = torch.Tensor(y).to(device)
+            
             testx = testx.transpose(1, 3)
             testy = testy.transpose(1, 3)
+            
             metrics = engine.eval(testx, testy[:, 0, :, :])
-            valid_loss.append(metrics[0])
-            valid_mape.append(metrics[1])
-            valid_rmse.append(metrics[2])
+            
+            valid_loss_list.append(metrics[0])
+            valid_mape_list.append(metrics[1])
+            valid_rmse_list.append(metrics[2])
         
         s2 = time.time()
         log = 'Epoch: {:03d}, Inference Time: {:.4f} secs'
         print(log.format(i, (s2 - s1)))
         val_time.append(s2 - s1)
         
-        test_loss = []
-        test_mape = []
-        test_rmse = []
+        mvalid_loss = np.mean(valid_loss_list, axis=0).round(4)
+        mvalid_mape = np.mean(valid_mape_list, axis=0).round(4)
+        mvalid_rmse = np.mean(valid_rmse_list, axis=0).round(4)
+        
+        del valid_loss_list, valid_mape_list, valid_rmse_list
+        
+        # test
+        
+        test_loss_list = []
+        test_mape_list = []
+        test_rmse_list = []
 
         
         for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
             testx_ = torch.Tensor(x).to(device)
             testy_ = torch.Tensor(y).to(device)
+            
             testx_ = testx_.transpose(1, 3)
             testy_ = testy_.transpose(1, 3)
             
             metrics = engine.eval(testx_, testy_[:, 0, :, :])
-            test_loss.append(metrics[0])
-            test_mape.append(metrics[1])
-            test_rmse.append(metrics[2])
-            
-            
-        mtrain_loss = np.mean(train_loss)
-        mtrain_mape = np.mean(train_mape)
-        mtrain_rmse = np.mean(train_rmse)
-
-        mvalid_loss = np.mean(valid_loss)
-        mvalid_mape = np.mean(valid_mape)
-        mvalid_rmse = np.mean(valid_rmse)
+            test_loss_list.append(metrics[0])
+            test_mape_list.append(metrics[1])
+            test_rmse_list.append(metrics[2])
         
-        mtest_loss = np.mean(test_loss)
-        mtest_mape = np.mean(test_mape)
-        mtest_rmse = np.mean(test_rmse)
+        mtest_loss = np.mean(test_loss_list, axis=0).round(4)
+        mtest_mape = np.mean(test_mape_list, axis=0).round(4)
+        mtest_rmse = np.mean(test_rmse_list, axis=0).round(4)
         
-        his_loss.append(mvalid_loss)
+        del test_loss_list, test_mape_list, test_rmse_list
+        
+        his_loss.append(mvalid_loss[-1]) # long-term loss
         
         torch.save(engine.model.state_dict(), args.save + "/G_T_model_" + str(i) + ".pth")
         if np.argmin(his_loss) == len(his_loss) - 1:
@@ -185,7 +198,7 @@ def main():
                          mtest_rmse,
                          (t2 - t1)))
         
-        log_file_train.write(f'Epoch {i}, Training Loss: {mtrain_loss:.4f}, Training MAPE: {mtrain_mape:.4f}, Training RMSE: {mtrain_rmse:.4f} \n')
+        log_file_train.write(f'Epoch {i}, Train Loss: {mtrain_loss:.4f}, Train MAPE: {mtrain_mape:.4f}, Train RMSE: {mtrain_rmse:.4f} \n')
         log_file_train.flush()
         log_file_val.write(f'Epoch {i}, Val Loss: {mvalid_loss:.4f}, Val MAPE: {mvalid_mape:.4f}, Val RMSE: {mvalid_rmse:.4f} \n')
         log_file_val.flush()
@@ -200,12 +213,13 @@ def main():
     outputs = []
     realy = torch.Tensor(dataloader['y_test']).to(device)
     realy = realy.transpose(1, 3)[:, 0, :, :]
-
+    
+    # Temp: test on long-term sequence only
     for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
         testx = torch.Tensor(x).to(device)
         with torch.no_grad():
-            back, preds = engine.model(testx, adj_mx)
-            preds = preds.transpose(1, 3)
+            outs = engine.model(testx, adj_mx)
+            preds = outs[-1].transpose(1, 3)
         outputs.append(preds.squeeze())
 
     yhat = torch.cat(outputs, dim=0)
@@ -228,7 +242,7 @@ def main():
         armse.append(metrics[2])
 
     log = 'On average over 12 horizons, Test MAE: {:.4f}, Test MAPE: ' + '{:.4f}, Test RMSE: {:.4f}'
-    print(log.format(np.mean(amae), np.mean(amape), np.mean(armse)))
+    print(log.format(np.mean(amae, axis=0), np.mean(amape, axis=0), np.mean(armse, axis=0)))
 
 
 if __name__ == "__main__":

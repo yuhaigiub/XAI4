@@ -38,7 +38,7 @@ class BeatsODE3(nn.Module):
                                              rtol, atol, perturb))
     
     def forward(self, backcast: Tensor, adj: Tensor):
-        self.integration_time = torch.tensor([-self.time, 0]).float().type_as(backcast)
+        self.integration_time = torch.tensor([self.time, 0]).float().type_as(backcast)
         forecast = torch.zeros_like(backcast).type_as(backcast)
         
         for stack_id in range(len(self.stacks)):

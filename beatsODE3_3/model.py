@@ -42,7 +42,7 @@ class BeatsODE3(nn.Module):
                                              rtol, atol, perturb))
     
     def forward(self, backcast: Tensor, adj: Tensor):
-        self.integration_time = torch.tensor([-self.time, 0]).float().type_as(backcast)
+        self.integration_time = torch.tensor([self.time, 0]).float().type_as(backcast)
         
         batch_size, channels, num_nodes, backcast_seq_len = backcast.size()
         forecast = torch.zeros(batch_size, channels, num_nodes, self.seq_lens[0]).type_as(backcast)

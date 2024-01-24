@@ -15,7 +15,6 @@ import util
 from beatsODE3_1.model import BeatsODE3
 
 from engine import Engine
-# from engine2 import Engine2
 
 parser = argparse.ArgumentParser()
 
@@ -73,8 +72,6 @@ def main():
                     args.weight_decay, 
                     device, 
                     adj_mx)
-    
-    # engine = Engine2(model, scaler, args.learning_rate, args.weight_decay, device)
     
     if not os.path.exists(args.save):
         os.makedirs(args.save)
