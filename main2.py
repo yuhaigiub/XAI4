@@ -36,7 +36,7 @@ parser.add_argument('--target_window', type=int, default=12, help='predict lengt
 parser.add_argument('--patch_len', type=int, default=1, help='patch length')
 parser.add_argument('--stride', type=int, default=1, help='stride')
 parser.add_argument('--blackbox_file', type=str, default='save_blackbox/G_T_model_1.pth', help='blackbox .pth file')
-parser.add_argument('--iter_epoch', type=str, default=8, help='using for save pth file')
+parser.add_argument('--iter_epoch', type=str, default=-1, help='using for save pth file')
 
 parser.add_argument('--num_nodes', type=int, default=207, help='number of nodes')
 parser.add_argument('--timestep', type=str, default=12, help='time step')

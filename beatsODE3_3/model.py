@@ -122,7 +122,7 @@ class BeatsODEBlock(nn.Module):
         x = x[..., -self.out_dim:]
         x = F.layer_norm(x, tuple(x.shape[1:]), weight=None, bias=None, eps=1e-5)
         
-        x = F.dropout(x, 0.3)
+        # x = F.dropout(x, 0.3)
         
         # decoder
         backcast = self.backcast_decoder(x).transpose(1, 3)
