@@ -44,25 +44,6 @@ class dilated_inception(nn.Module):
         x = torch.cat(x, dim=1)
         return x
 
-class CGPBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, alpha=1.0):
-        super(CGPFunc, self).__init__()
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.alpha = alpha
-        self.conv = nconv()
-    
-    def forward(self, x: Tensor, adj: Tensor):
-        adj = adj + torch.eye(adj.size(0)).to(x.device)
-        d = adj.sum(1)
-        _d = torch.diag(torch.pow(d, -0.5))
-        adj_norm = torch.mm(torch.mm(_d, adj), _d)
-        
-        ax = self.conv(x, adj_norm)
-        f = 0.5 * self.alpha * (ax - x)
-        
-        return f
-
 class CGPODEBlock(nn.Module):
     def __init__(self, in_dim, out_dim, time, step_size, rtol, atol, perturb, alpha=1.0):
         super(CGPODEBlock, self).__init__()

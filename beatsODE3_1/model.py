@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE3.layers import CGPODEBlock, dilated_inception
+from beatsODE3_1.layers import CGPODEBlock, dilated_inception
 
 class BeatsODE3(nn.Module):
     def __init__(self,
@@ -14,24 +14,31 @@ class BeatsODE3(nn.Module):
                  time_0=1.2, step_size_0=0.4,
                  time_1=1.0, step_size_1=0.25,
                  time_2=1.2, step_size_2=0.4,
-                 rtol=1e-4, atol=1e-3, perturb=False,                 
+                 rtol=1e-4, atol=1e-3, perturb=False,
                  share_weight_in_stack=False):
         super(BeatsODE3, self).__init__()
-        print('BeatsODE3')
+        print('BeatsODE3_1')
         if share_weight_in_stack:
             print('BeatsODE with share_stack_weight')
         
         self.time = time_0
         self.step_size = step_size_0
         
+        self.rtol = rtol
+        self.atol = atol
+        self.perturb = perturb
+        
         n_stacks = 3
         self.stacks = nn.ModuleList()
         
         for stack_id in range(n_stacks):
-            self.stacks.append(BeatsODEBlock(in_dim, out_dim, seq_len, time_1, step_size_1, time_2, step_size_2))
+            self.stacks.append(BeatsODEBlock(in_dim, out_dim, seq_len, 
+                                             time_1, step_size_1, 
+                                             time_2, step_size_2,
+                                             rtol, atol, perturb))
     
     def forward(self, backcast: Tensor, adj: Tensor):
-        self.integration_time = torch.tensor([0, self.time]).float().type_as(backcast)
+        self.integration_time = torch.tensor([-self.time, 0]).float().type_as(backcast)
         forecast = torch.zeros_like(backcast).type_as(backcast)
         
         for stack_id in range(len(self.stacks)):
@@ -44,10 +51,9 @@ class BeatsODE3(nn.Module):
                                           backcast,
                                           self.integration_time,
                                           method="euler",
-                                          options=dict(step_size=self.step_size))[-1]
+                                          rtol=self.rtol, atol=self.atol,
+                                          options=dict(step_size=self.step_size, perturb=self.perturb))[-1]
             forecast = stack.forecast
-            
-            stack.backcast = None
             stack.forecast = None
             
         backcast = backcast.transpose(1, 3)
@@ -86,7 +92,6 @@ class BeatsODEBlock(nn.Module):
                                               nn.ReLU(),
                                               nn.Conv2d(end_dim, seq_len, kernel_size=(1, 1)))
         
-        self.backcast = None
         self.forecast = None
         self.adj = None
     
@@ -94,10 +99,6 @@ class BeatsODEBlock(nn.Module):
         self.adj = adj
     
     def forward(self, t, x: Tensor):
-        if self.backcast is not None:
-            x = x - self.backcast
-        self.backcast = x
-        
         if self.seq_len < self.receptive_field:
             x = F.pad(x, (self.receptive_field - self.seq_len, 0))
         
@@ -109,6 +110,8 @@ class BeatsODEBlock(nn.Module):
         
         x = x[..., -self.out_dim:]
         x = F.layer_norm(x, tuple(x.shape[1:]), weight=None, bias=None, eps=1e-5)
+        
+        x = F.dropout(x, 0.3)
         
         # decoder
         backcast = self.backcast_decoder(x).transpose(1, 3)

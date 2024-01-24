@@ -8,12 +8,11 @@ class Engine():
         self.model = model
         self.model.to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lrate, weight_decay=wdecay)
-        print('number of parameters:', len(list(self.model.parameters())))
+        print('number of parameters:', sum(p.numel() for p in model.parameters()))
         
         self.loss = util.masked_mae
         self.scaler = scaler
         self.clip = 5
-        
 
         self.edge_index = [[], []]
         self.edge_weight = []

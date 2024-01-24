@@ -5,17 +5,12 @@ import time
 import numpy as np
 import torch
 import util
-# from graphwavenet.model import GraphWaveNet
-# from beatsODE.model import BeatsODE
-# from mtgode.model import MTGODE
-# from beatsODE2.model import BeatsODE2
-# from beatsODE2_1.model import BeatsODE2
-# from beatsODE2_2.model import BeatsODE2
-# from beatsODE3.model import BeatsODE3
-from beatsODE3_1.model import BeatsODE3
 
-from engine import Engine
-# from engine2 import Engine2
+from beatsODE3_2.model import BeatsODE3
+# from beatsODE3_3.model import BeatsODE3
+
+# from engine import Engine
+from engine2 import Engine2
 
 parser = argparse.ArgumentParser()
 
@@ -41,7 +36,7 @@ parser.add_argument('--target_window', type=int, default=12, help='predict lengt
 parser.add_argument('--patch_len', type=int, default=1, help='patch length')
 parser.add_argument('--stride', type=int, default=1, help='stride')
 parser.add_argument('--blackbox_file', type=str, default='save_blackbox/G_T_model_1.pth', help='blackbox .pth file')
-parser.add_argument('--iter_epoch', type=str, default=1, help='using for save pth file')
+parser.add_argument('--iter_epoch', type=str, default=8, help='using for save pth file')
 
 parser.add_argument('--num_nodes', type=int, default=207, help='number of nodes')
 parser.add_argument('--timestep', type=str, default=12, help='time step')
@@ -60,21 +55,19 @@ def main():
     # Mean / std dev scaling is performed to the model output
     scaler = dataloader['scaler']
     
-    # model = GraphWaveNet(args.num_nodes, args.input_dim, args.output_dim, args.timestep)
-    # model = BeatsODE(device, args.input_dim, args.output_dim, args.timestep)
-    # model = MTGODE(device, args.input_dim, args.timestep, adj_mx, args.timestep)
-    # model = BeatsODE2(in_dim=2, out_dim=2, seq_len=12)
-    model = BeatsODE3(in_dim=2, out_dim=2, seq_len=12)
+    seq_lens = [3, 6, 12]
+    model = BeatsODE3(in_dim=2, out_dim=2, input_seq_len=12, seq_lens=seq_lens)
     
-    engine = Engine(scaler,
-                    model,
-                    args.num_nodes, 
-                    args.learning_rate,
-                    args.weight_decay, 
-                    device, 
-                    adj_mx)
-    
-    # engine = Engine2(model, scaler, args.learning_rate, args.weight_decay, device)
+    engine = Engine2(scaler,
+                     model,
+                     args.num_nodes, 
+                     args.learning_rate,
+                     args.weight_decay, 
+                     device, 
+                     adj_mx)
+    if args.iter_epoch != -1:
+        print('loading epoch {}'.format(args.iter_epoch))
+        model.load_state_dict(torch.load(args.save + '/G_T_model_{}.pth'.format(args.iter_epoch)))
     
     if not os.path.exists(args.save):
         os.makedirs(args.save)
@@ -89,7 +82,8 @@ def main():
     train_time = []
     best_epoch = 0
 
-    for i in range(args.iter_epoch, args.epochs + 1):
+    for i in range(args.iter_epoch + 1, args.iter_epoch + 1 + args.epochs + 1):
+        print('training epoch {} ***'.format(i))
         train_loss = []
         train_mape = []
         train_rmse = []
@@ -112,6 +106,10 @@ def main():
             if iter % args.print_every == 0:
                 log = 'Iter: {:03d}, Train Loss: {:.4f}, Train MAPE: ' + '{:.4f}, Train RMSE: {:.4f}'
                 print(log.format(iter, train_loss[-1], train_mape[-1], train_rmse[-1]), flush=True)
+                print('- MAE:  {}'.format(metrics[3]))
+                print('- MAPE: {}'.format(metrics[4]))
+                print('- RMSE: {}'.format(metrics[5]))
+                
                 
         t2 = time.time()
         

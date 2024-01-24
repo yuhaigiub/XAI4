@@ -4,37 +4,50 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE3.layers import CGPODEBlock, dilated_inception
+from beatsODE3_2.layers import CGPODEBlock, dilated_inception
 
 class BeatsODE3(nn.Module):
     def __init__(self,
                  in_dim=2,
                  out_dim=2,
-                 seq_len=12,
+                 input_seq_len=12,
+                 seq_lens=[3, 6, 12],
                  time_0=1.2, step_size_0=0.4,
                  time_1=1.0, step_size_1=0.25,
                  time_2=1.2, step_size_2=0.4,
-                 rtol=1e-4, atol=1e-3, perturb=False,                 
+                 rtol=1e-4, atol=1e-3, perturb=False,
                  share_weight_in_stack=False):
         super(BeatsODE3, self).__init__()
-        print('BeatsODE3')
+        print('BeatsODE3_2')
         if share_weight_in_stack:
             print('BeatsODE with share_stack_weight')
         
         self.time = time_0
         self.step_size = step_size_0
+        self.seq_lens = seq_lens
+        
+        self.rtol = rtol
+        self.atol = atol
+        self.perturb = perturb
         
         n_stacks = 3
         self.stacks = nn.ModuleList()
         
         for stack_id in range(n_stacks):
-            self.stacks.append(BeatsODEBlock(in_dim, out_dim, seq_len, time_1, step_size_1, time_2, step_size_2))
+            self.stacks.append(BeatsODEBlock(in_dim, out_dim, 
+                                             input_seq_len,
+                                             seq_lens[stack_id], 
+                                             time_1, step_size_1, 
+                                             time_2, step_size_2,
+                                             rtol, atol, perturb))
     
     def forward(self, backcast: Tensor, adj: Tensor):
-        self.integration_time = torch.tensor([0, self.time]).float().type_as(backcast)
-        forecast = torch.zeros_like(backcast).type_as(backcast)
+        self.integration_time = torch.tensor([-self.time, 0]).float().type_as(backcast)
         
+        batch_size, channels, num_nodes, backcast_seq_len = backcast.size()
+        outs = []
         for stack_id in range(len(self.stacks)):
+            forecast = torch.zeros(batch_size, channels, num_nodes, self.seq_lens[stack_id]).type_as(backcast)
             stack: BeatsODEBlock = self.stacks[stack_id]
             
             stack.set_adj(adj)
@@ -44,22 +57,22 @@ class BeatsODE3(nn.Module):
                                           backcast,
                                           self.integration_time,
                                           method="euler",
-                                          options=dict(step_size=self.step_size))[-1]
-            forecast = stack.forecast
-            
-            stack.backcast = None
+                                          rtol=self.rtol, atol=self.atol,
+                                          options=dict(step_size=self.step_size, perturb=self.perturb))[-1]
+            outs.append(stack.forecast.transpose(1, 3))
             stack.forecast = None
             
         backcast = backcast.transpose(1, 3)
         forecast = forecast.transpose(1, 3)
         
-        return forecast
+        return outs
 
 class BeatsODEBlock(nn.Module):
     def __init__(self, 
                  in_dim, 
                  out_dim, 
-                 seq_len,
+                 input_seq_len,
+                 output_seq_len,
                  time_1, step_size_1,
                  time_2, step_size_2,
                  rtol, atol, perturb,
@@ -69,7 +82,7 @@ class BeatsODEBlock(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         
-        self.seq_len = seq_len
+        self.seq_len = input_seq_len
         self.nfe = round(time_1 / step_size_1)
         max_kernel_size = 7
         self.receptive_field = self.nfe * (max_kernel_size - 1) + out_dim
@@ -80,13 +93,12 @@ class BeatsODEBlock(nn.Module):
         
         self.backcast_decoder = nn.Sequential(nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
                                               nn.ReLU(),
-                                              nn.Conv2d(end_dim, seq_len, kernel_size=(1, 1)))
+                                              nn.Conv2d(end_dim, input_seq_len, kernel_size=(1, 1)))
         
         self.forecast_decoder = nn.Sequential(nn.Conv2d(conv_dim, end_dim, kernel_size=(1, 1)),
                                               nn.ReLU(),
-                                              nn.Conv2d(end_dim, seq_len, kernel_size=(1, 1)))
+                                              nn.Conv2d(end_dim, output_seq_len, kernel_size=(1, 1)))
         
-        self.backcast = None
         self.forecast = None
         self.adj = None
     
@@ -94,10 +106,6 @@ class BeatsODEBlock(nn.Module):
         self.adj = adj
     
     def forward(self, t, x: Tensor):
-        if self.backcast is not None:
-            x = x - self.backcast
-        self.backcast = x
-        
         if self.seq_len < self.receptive_field:
             x = F.pad(x, (self.receptive_field - self.seq_len, 0))
         
@@ -109,6 +117,8 @@ class BeatsODEBlock(nn.Module):
         
         x = x[..., -self.out_dim:]
         x = F.layer_norm(x, tuple(x.shape[1:]), weight=None, bias=None, eps=1e-5)
+        
+        x = F.dropout(x, 0.3)
         
         # decoder
         backcast = self.backcast_decoder(x).transpose(1, 3)
