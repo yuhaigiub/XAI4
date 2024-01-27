@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE3_3.layers import CGPODEBlock, dilated_inception
+from beatsODE3_4.layers import CGPODEBlock, dilated_inception, nconv
 
 class BeatsODE3(nn.Module):
     def __init__(self,
@@ -18,7 +18,7 @@ class BeatsODE3(nn.Module):
                  rtol=1e-4, atol=1e-3, perturb=False,
                  share_weight_in_stack=False):
         super(BeatsODE3, self).__init__()
-        print('BeatsODE3_3')
+        print('BeatsODE3_4')
         if share_weight_in_stack:
             print('BeatsODE with share_stack_weight')
         
@@ -45,13 +45,9 @@ class BeatsODE3(nn.Module):
         self.integration_time = torch.tensor([self.time, 0]).float().type_as(backcast)
         
         batch_size, channels, num_nodes, backcast_seq_len = backcast.size()
-        forecast = torch.zeros(batch_size, channels, num_nodes, self.seq_lens[0]).type_as(backcast)
         outs = []
         for stack_id in range(len(self.stacks)):
-            if stack_id != 0:
-                delta = self.seq_lens[stack_id] - self.seq_lens[stack_id - 1]
-                forecast = F.pad(forecast.clone().detach().requires_grad_(True), (0, delta))
-            
+            forecast = torch.zeros(batch_size, channels, num_nodes, self.seq_lens[stack_id]).type_as(backcast)
             stack: BeatsODEBlock = self.stacks[stack_id]
             
             stack.set_adj(adj)
@@ -62,7 +58,7 @@ class BeatsODE3(nn.Module):
                                           self.integration_time,
                                           method="euler",
                                           rtol=self.rtol, atol=self.atol,
-                                          options=dict(step_size=self.step_size, perturb=self.perturb))[-1]
+                                          options=dict(step_size=-1 * self.step_size, perturb=self.perturb))[-1]
             outs.append(stack.forecast.transpose(1, 3))
             stack.forecast = None
             
@@ -122,7 +118,7 @@ class BeatsODEBlock(nn.Module):
         x = x[..., -self.out_dim:]
         x = F.layer_norm(x, tuple(x.shape[1:]), weight=None, bias=None, eps=1e-5)
         
-        # x = F.dropout(x, 0.3)
+        x = F.dropout(x, 0.3)
         
         # decoder
         backcast = self.backcast_decoder(x).transpose(1, 3)
@@ -169,11 +165,18 @@ class STBlock(nn.Module):
         self.new_dilation = 1
         self.dilation_factor = dilation
         
+        num_nodes = 207
+        adptive_embeddings = 10
+        
+        self.e1 = nn.Parameter(torch.randn(num_nodes, adptive_embeddings), requires_grad=True)
+        self.e2 = nn.Parameter(torch.randn(adptive_embeddings, num_nodes), requires_grad=True)
+        
         self.inception_1 = dilated_inception(hidden_dim, hidden_dim)
         self.inception_2 = dilated_inception(hidden_dim, hidden_dim)
         
         self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol, perturb)
         self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol, perturb)
+        self.adp_conv = nconv()
         
         self.adj = None
     
@@ -186,6 +189,8 @@ class STBlock(nn.Module):
     
     def forward(self, t, x: Tensor):
         x = x[..., -self.intermediate_seq_len:]
+        
+        adp = F.softmax(F.relu(torch.mm(self.e1, self.e2)), dim=1)
         
         for tconv in self.inception_1.tconv:
             tconv.dilation = (1, self.new_dilation)
@@ -205,7 +210,7 @@ class STBlock(nn.Module):
         
         x = F.dropout(x, self.dropout)
         
-        x = self.gconv1(x, self.adj) + self.gconv2(x, self.adj.T)
+        x = self.gconv1(x, self.adj) + self.gconv2(x, self.adj.T) + self.adp_conv(x, adp)
         
         x = F.pad(x, (self.receptive_field - x.size(3), 0))
         

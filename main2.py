@@ -6,8 +6,9 @@ import numpy as np
 import torch
 import util
 
-from beatsODE3_2.model import BeatsODE3
-# from beatsODE3_3.model import BeatsODE3
+# from beatsODE3_2.model import BeatsODE3
+from beatsODE3_3.model import BeatsODE3
+from beatsODE3_4.model import BeatsODE3
 
 from engine2 import Engine2
 
@@ -20,7 +21,7 @@ parser.add_argument('--device', type=str, default='cuda', help='device to run th
 parser.add_argument('--data', type=str, default='store/METR-LA', help='data path')
 parser.add_argument('--adjdata', type=str, default='store/adj_mx.pkl', help='adj data path')
 
-parser.add_argument('--epochs', type=int, default=1, help='')
+parser.add_argument('--epochs', type=int, default=5, help='')
 parser.add_argument('--batch_size', type=int, default=16, help='batch size')
 
 parser.add_argument('--learning_rate', type=float, default=0.001, help='learning rate')
@@ -64,7 +65,7 @@ def main():
                      args.weight_decay, 
                      device, 
                      adj_mx)
-    
+    adj_mx = torch.tensor(adj_mx).to(device)
     # load checkpoints
     if args.iter_epoch != -1:
         print('loading epoch {}'.format(args.iter_epoch))
@@ -83,7 +84,7 @@ def main():
     train_time = []
     best_epoch = 0
 
-    for i in range(args.iter_epoch + 1, args.iter_epoch + 1 + args.epochs + 1):
+    for i in range(args.iter_epoch + 1, args.iter_epoch + 1 + args.epochs):
         print('training epoch {} ***'.format(i))
         train_loss_list = []
         train_mape_list = []
@@ -110,6 +111,10 @@ def main():
                 print('- MAPE: {}'.format(train_mape_list[-1]))
                 print('- RMSE: {}'.format(train_rmse_list[-1]))
                 
+                
+                
+            # if iter == 50:
+            #     break
         
         t2 = time.time()
         train_time.append(t2 - t1)
@@ -139,6 +144,10 @@ def main():
             valid_loss_list.append(metrics[0])
             valid_mape_list.append(metrics[1])
             valid_rmse_list.append(metrics[2])
+            
+            # if iter == 50:
+            #     break
+
         
         s2 = time.time()
         log = 'Epoch: {:03d}, Inference Time: {:.4f} secs'
@@ -169,6 +178,10 @@ def main():
             test_loss_list.append(metrics[0])
             test_mape_list.append(metrics[1])
             test_rmse_list.append(metrics[2])
+            
+            # if iter == 50:
+            #     break
+  
         
         mtest_loss = np.mean(test_loss_list, axis=0).round(4)
         mtest_mape = np.mean(test_mape_list, axis=0).round(4)
@@ -182,23 +195,34 @@ def main():
         if np.argmin(his_loss) == len(his_loss) - 1:
             best_epoch = i
 
-        log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, ' + \
-              'Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, ' + \
-              'Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
+        # log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, ' + \
+        #       'Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, ' + \
+        #       'Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
 
-        print(log.format(i, 
-                         mtrain_loss, 
-                         mtrain_mape, 
-                         mtrain_rmse, 
-                         mvalid_loss,
-                         mvalid_mape, 
-                         mvalid_rmse, 
-                         mtest_loss,
-                         mtest_mape,
-                         mtest_rmse,
-                         (t2 - t1)))
-        
-        log_file_train.write(f'Epoch {i}, Train Loss: {mtrain_loss:.4f}, Train MAPE: {mtrain_mape:.4f}, Train RMSE: {mtrain_rmse:.4f} \n')
+        mtrain_loss = list(mtrain_loss)[-1]
+        mtrain_mape = list(mtrain_mape)[-1]
+        mtrain_rmse = list(mtrain_rmse)[-1]
+        mvalid_loss = list(mvalid_loss)[-1]
+        mvalid_mape = list(mvalid_mape)[-1]
+        mvalid_rmse = list(mvalid_rmse)[-1]
+        mtest_loss = list(mtest_loss)[-1]
+        mtest_mape = list(mtest_mape)[-1]
+        mtest_rmse = list(mtest_rmse)[-1]
+
+        # print(log.format(i, 
+        #                  mtrain_loss, 
+        #                  mtrain_mape, 
+        #                  mtrain_rmse, 
+        #                  mvalid_loss,
+        #                  mvalid_mape, 
+        #                  mvalid_rmse, 
+        #                  mtest_loss,
+        #                  mtest_mape,
+        #                  mtest_rmse,
+        #                  (t2 - t1)))
+        print(f'Epoch: {i}, Train Loss: {mtrain_loss:.4f}, Train MAPE: {mtrain_mape:.4f}, Train RMSE: {mtrain_rmse:.4f}, Val Loss: {mvalid_loss:.4f}, Val MAPE: {mvalid_mape:.4f}, Val RMSE: {mvalid_rmse:.4f},Test Loss: {mtest_loss:.4f}, Test MAPE: {mtest_mape:.4f}, Test RMSE: {mtest_rmse:.4f} \n')
+        #print(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss,mvalid_mape, mvalid_rmse, mtest_loss, mtest_mape, mtest_rmse)
+        log_file_train.write(f'Epoch {i}, Training Loss: {mtrain_loss:.4f}, Training MAPE: {mtrain_mape:.4f}, Training RMSE: {mtrain_rmse:.4f} \n')
         log_file_train.flush()
         log_file_val.write(f'Epoch {i}, Val Loss: {mvalid_loss:.4f}, Val MAPE: {mvalid_mape:.4f}, Val RMSE: {mvalid_rmse:.4f} \n')
         log_file_val.flush()
@@ -216,14 +240,16 @@ def main():
     
     # Temp: test on long-term sequence only
     for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
-        testx = torch.Tensor(x).to(device)
+        #testx = torch.Tensor(x).to(device)
+        testx = torch.FloatTensor(x).transpose(1, 3).to(device)
         with torch.no_grad():
             outs = engine.model(testx, adj_mx)
-            preds = outs[-1].transpose(1, 3)
-        outputs.append(preds.squeeze())
+            pred = outs[-1].transpose(1, 3)[:, 0:1, :, :]
+        outputs.append(pred.squeeze())
 
     yhat = torch.cat(outputs, dim=0)
     yhat = yhat[:realy.size(0), ...]
+ 
 
     print("Training finished")
 
@@ -231,8 +257,9 @@ def main():
     amape = []
     armse = []
     for i in range(12):
-        pred= scaler.inverse_transform(yhat[:, :, i])
+        pred = scaler.inverse_transform(yhat[:, :, i])
         real = realy[:, :, i]
+        print(pred.shape, real.shape)
         metrics = util.metric(pred, real)
         log = 'Evaluate best model on test data for horizon {:d}, Test MAE:' + '{:.4f}, Test MAPE: {:.4f}, Test RMSE: {:.4f}'
         
