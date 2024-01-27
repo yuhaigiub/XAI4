@@ -4,7 +4,7 @@ from torch import nn, Tensor
 
 import torchdiffeq
 
-from beatsODE3_4.layers import CGPODEBlock, dilated_inception, nconv
+from beatsODE3_4.layers import CGPODEBlock, dilated_inception
 
 class BeatsODE3(nn.Module):
     def __init__(self,
@@ -14,7 +14,7 @@ class BeatsODE3(nn.Module):
                  seq_lens=[3, 6, 12],
                  time_0=1.2, step_size_0=0.4,
                  time_1=1.0, step_size_1=0.25,
-                 time_2=1.2, step_size_2=0.4,
+                 time_2=1.0, step_size_2=0.25,
                  rtol=1e-4, atol=1e-3, perturb=False,
                  share_weight_in_stack=False):
         super(BeatsODE3, self).__init__()
@@ -58,7 +58,7 @@ class BeatsODE3(nn.Module):
                                           self.integration_time,
                                           method="euler",
                                           rtol=self.rtol, atol=self.atol,
-                                          options=dict(step_size=-1 * self.step_size, perturb=self.perturb))[-1]
+                                          options=dict(step_size=self.step_size, perturb=self.perturb))[-1]
             outs.append(stack.forecast.transpose(1, 3))
             stack.forecast = None
             
@@ -165,18 +165,11 @@ class STBlock(nn.Module):
         self.new_dilation = 1
         self.dilation_factor = dilation
         
-        num_nodes = 207
-        adptive_embeddings = 10
-        
-        self.e1 = nn.Parameter(torch.randn(num_nodes, adptive_embeddings), requires_grad=True)
-        self.e2 = nn.Parameter(torch.randn(adptive_embeddings, num_nodes), requires_grad=True)
-        
         self.inception_1 = dilated_inception(hidden_dim, hidden_dim)
         self.inception_2 = dilated_inception(hidden_dim, hidden_dim)
         
         self.gconv1 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol, perturb)
         self.gconv2 = CGPODEBlock(hidden_dim, hidden_dim, time_2, step_size_2, rtol, atol, perturb)
-        self.adp_conv = nconv()
         
         self.adj = None
     
@@ -189,8 +182,6 @@ class STBlock(nn.Module):
     
     def forward(self, t, x: Tensor):
         x = x[..., -self.intermediate_seq_len:]
-        
-        adp = F.softmax(F.relu(torch.mm(self.e1, self.e2)), dim=1)
         
         for tconv in self.inception_1.tconv:
             tconv.dilation = (1, self.new_dilation)
@@ -210,7 +201,7 @@ class STBlock(nn.Module):
         
         x = F.dropout(x, self.dropout)
         
-        x = self.gconv1(x, self.adj) + self.gconv2(x, self.adj.T) + self.adp_conv(x, adp)
+        x = self.gconv1(x, self.adj) + self.gconv2(x, self.adj.T)
         
         x = F.pad(x, (self.receptive_field - x.size(3), 0))
         

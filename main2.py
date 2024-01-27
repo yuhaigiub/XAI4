@@ -6,9 +6,9 @@ import numpy as np
 import torch
 import util
 
-# from beatsODE3_2.model import BeatsODE3
-from beatsODE3_3.model import BeatsODE3
-from beatsODE3_4.model import BeatsODE3
+from beatsODE3_2.model import BeatsODE3
+# from beatsODE3_3.model import BeatsODE3
+# from beatsODE3_4.model import BeatsODE3
 
 from engine2 import Engine2
 

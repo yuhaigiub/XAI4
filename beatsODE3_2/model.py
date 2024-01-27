@@ -14,7 +14,7 @@ class BeatsODE3(nn.Module):
                  seq_lens=[3, 6, 12],
                  time_0=1.2, step_size_0=0.4,
                  time_1=1.0, step_size_1=0.25,
-                 time_2=1.2, step_size_2=0.4,
+                 time_2=1.0, step_size_2=0.25,
                  rtol=1e-4, atol=1e-3, perturb=False,
                  share_weight_in_stack=False):
         super(BeatsODE3, self).__init__()
@@ -118,7 +118,7 @@ class BeatsODEBlock(nn.Module):
         x = x[..., -self.out_dim:]
         x = F.layer_norm(x, tuple(x.shape[1:]), weight=None, bias=None, eps=1e-5)
         
-        # x = F.dropout(x, 0.3)
+        x = F.dropout(x, 0.3)
         
         # decoder
         backcast = self.backcast_decoder(x).transpose(1, 3)
