@@ -45,13 +45,12 @@ class Engine2():
         
         outs = self.model(input, self.adj_mx)
         real = torch.unsqueeze(real_val, dim=1)
-        
         loss = 0
         
         Ls, MAPEs, RMSEs = [], [], []
         for i, out in enumerate(outs):
-            predict = self.scaler.inverse_transform(out[:, 0:1, : ,:].transpose(-3, -1))
-            r = real[:, :, :, 0: self.seq_lens[i]]
+            predict = self.scaler.inverse_transform(out[:, 0:self.seq_lens[i], :, 0:1].transpose(-3, -1))
+            r = real[:, :, :, 0:self.seq_lens[i]]
             
             mae = self.loss(predict, r, 0.0)
             mape = util.masked_mape(predict, r, 0.0).item()
@@ -85,8 +84,8 @@ class Engine2():
         
         Ls, MAPEs, RMSEs = [], [], []
         for i, out in enumerate(outs):
-            predict = self.scaler.inverse_transform(out[:, 0:1, : ,:].transpose(-3, -1))
-            r = real[:, :, :, 0: self.seq_lens[i]]
+            predict = self.scaler.inverse_transform(out[:, 0:self.seq_lens[i], :, 0:1].transpose(-3, -1))
+            r = real[:, :, :, 0:self.seq_lens[i]]
             
             mae = self.loss(predict, r, 0.0)
             mape = util.masked_mape(predict, r, 0.0).item()

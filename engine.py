@@ -41,13 +41,13 @@ class Engine():
         # input = input.transpose(-3, -1)
         
         # output = self.model(input, self.edge_index, self.edge_weight)
-        output = self.model(input, self.adj_mx)[:, 0:1, :, :]
+        output = self.model(input, self.adj_mx)[:, :, :, 0:1]
         # [batch_size, time_steps, num_nodes, channels]
         output = output.transpose(-3, -1)
         
         real = torch.unsqueeze(real_val, dim=1)
         predict = self.scaler.inverse_transform(output)
-
+        
         loss = self.loss(predict, real, 0.0)
         loss.backward()
         if self.clip is not None:
@@ -68,7 +68,7 @@ class Engine():
         # input = input.transpose(-3, -1)
         
         # output = self.model(input, self.edge_index, self.edge_weight)
-        output = self.model(input, self.adj_mx)
+        output = self.model(input, self.adj_mx)[:, :, :, 0:1]
         # [batch_size, time_steps, num_nodes, channels]
         output = output.transpose(-3, -1)
         

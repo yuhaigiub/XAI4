@@ -12,7 +12,8 @@ import util
 # from beatsODE2_1.model import BeatsODE2
 # from beatsODE2_2.model import BeatsODE2
 # from beatsODE3.model import BeatsODE3
-from beatsODE3_1.model import BeatsODE3
+# from beatsODE3_1.model import BeatsODE3
+from beatsODE3_4.model import BeatsODE3
 
 from engine import Engine
 
@@ -40,7 +41,7 @@ parser.add_argument('--target_window', type=int, default=12, help='predict lengt
 parser.add_argument('--patch_len', type=int, default=1, help='patch length')
 parser.add_argument('--stride', type=int, default=1, help='stride')
 parser.add_argument('--blackbox_file', type=str, default='save_blackbox/G_T_model_1.pth', help='blackbox .pth file')
-parser.add_argument('--iter_epoch', type=str, default=1, help='using for save pth file')
+parser.add_argument('--iter_epoch', type=str, default=-1, help='using for save pth file')
 
 parser.add_argument('--num_nodes', type=int, default=207, help='number of nodes')
 parser.add_argument('--timestep', type=str, default=12, help='time step')
@@ -63,7 +64,7 @@ def main():
     # model = BeatsODE(device, args.input_dim, args.output_dim, args.timestep)
     # model = MTGODE(device, args.input_dim, args.timestep, adj_mx, args.timestep)
     # model = BeatsODE2(in_dim=2, out_dim=2, seq_len=12)
-    model = BeatsODE3(in_dim=2, out_dim=2, seq_len=12)
+    model = BeatsODE3(in_dim=2, out_dim=2, input_seq_len=12)
     
     engine = Engine(scaler,
                     model,
@@ -204,7 +205,7 @@ def main():
         testx = torch.Tensor(x).to(device)
         with torch.no_grad():
             back, preds = engine.model(testx, adj_mx)
-            preds = preds.transpose(1, 3)
+            preds = preds.transpose(1, 3)[:, 0:1, :, :]
         outputs.append(preds.squeeze())
 
     yhat = torch.cat(outputs, dim=0)

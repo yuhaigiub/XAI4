@@ -43,11 +43,9 @@ class BeatsODE3(nn.Module):
     
     def forward(self, backcast: Tensor, adj: Tensor):
         self.integration_time = torch.tensor([self.time, 0]).float().type_as(backcast)
+        forecast = torch.zeros_like(backcast).type_as(backcast)
         
-        batch_size, channels, num_nodes, backcast_seq_len = backcast.size()
-        outs = []
         for stack_id in range(len(self.stacks)):
-            forecast = torch.zeros(batch_size, channels, num_nodes, self.seq_lens[stack_id]).type_as(backcast)
             stack: BeatsODEBlock = self.stacks[stack_id]
             
             stack.set_adj(adj)
@@ -59,13 +57,11 @@ class BeatsODE3(nn.Module):
                                           method="euler",
                                           rtol=self.rtol, atol=self.atol,
                                           options=dict(step_size=self.step_size, perturb=self.perturb))[-1]
-            outs.append(stack.forecast.transpose(1, 3))
+            forecast = stack.forecast
             stack.forecast = None
-            
-        backcast = backcast.transpose(1, 3)
-        forecast = forecast.transpose(1, 3)
         
-        return outs
+        forecast = forecast.transpose(1, 3)
+        return forecast
 
 class BeatsODEBlock(nn.Module):
     def __init__(self, 
@@ -82,6 +78,7 @@ class BeatsODEBlock(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         
+        self.output_seq_len = output_seq_len
         self.seq_len = input_seq_len
         self.nfe = round(time_1 / step_size_1)
         max_kernel_size = 7
@@ -123,6 +120,8 @@ class BeatsODEBlock(nn.Module):
         # decoder
         backcast = self.backcast_decoder(x).transpose(1, 3)
         forecast = self.forecast_decoder(x).transpose(1, 3)
+        
+        forecast = F.pad(forecast, [0, self.seq_len - self.output_seq_len])
         
         self.forecast = self.forecast + forecast
         
